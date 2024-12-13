@@ -5,7 +5,7 @@ import requests
 import os
 
 # Your actual API key
-api_key = "AIzaSyAAky77jBjnIOcbokgmCZcnFxMzcrFcb7o"  # Replace with your actual API key
+api_key = "API Key"  # Replace with your actual API key
 
 # Load the BERT data for symptom-to-disease mapping
 bert_data = pd.read_csv('bert.csv')
