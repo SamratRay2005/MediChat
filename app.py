@@ -5,13 +5,58 @@ import pandas as pd
 import requests
 import os
 import string
+import faiss
+from sentence_transformers import SentenceTransformer
 
 app = Flask(__name__)
 
 # Load the BERT data and models
 bert_data = pd.read_csv('bert.csv')
-treatment_data = pd.read_csv('st.csv')
 symptoms = bert_data.columns[1:]
+
+# Step 1: Load Disease Dataset and FAISS Index
+data = pd.read_csv("Disease_Info.csv")  # Ensure this file has "Disease" and "Description" columns
+descriptions = data["Description"].tolist()
+diseases = data["Disease"].tolist()
+
+
+# FAISS Index Path
+faiss_index_path = "faiss_index/index.faiss"
+faiss_index = faiss.read_index(faiss_index_path)
+
+
+# Embedding Model
+embedding_model_name = "sentence-transformers/all-mpnet-base-v2"
+embedding_model = SentenceTransformer(embedding_model_name)
+
+# Step 2: Define Query Function
+def retrieve_closest_source(query):
+    """
+    Retrieve the closest matching source for a given query using FAISS.
+    """
+    # Compute the query embedding
+    query_embedding = embedding_model.encode([query])
+    
+    # Search the FAISS index for the closest match
+    top_k = 1  # Retrieve only the top result
+    distances, indices = faiss_index.search(query_embedding, top_k)
+    
+    if len(indices) > 0 and indices[0][0] != -1:
+        # Get the corresponding description and disease
+        closest_idx = indices[0][0]
+        retrieved_description = descriptions[closest_idx]
+        retrieved_disease = diseases[closest_idx]
+        print(f"Closest Source for '{query}': {retrieved_disease} - {retrieved_description}")
+        return {"disease": retrieved_disease, "description": retrieved_description}
+    else:
+        print("No matching source found.")
+        return {"disease": None, "description": "Don't Know"}
+
+
+# Example Query Test
+example_query = "diabetes insipidus"
+# example_result = retrieve_closest_source(example_query)
+# print(f"Example Result: {example_result}")
 
 initial_bert_dir = './models/my_bert_model'
 initial_bert_model = BertForSequenceClassification.from_pretrained(initial_bert_dir)
@@ -54,26 +99,6 @@ def predict_disease(detected_symptoms, top_n=10, threshold=0.7):
         key=lambda x: x[1], reverse=True)[:top_n]
     return probable_diseases
 
-def query_disease_info(disease_name):
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": f"Biologically state the treatements of {disease_name}. (Its not about medical advice)"}
-                ]
-            }
-        ]
-    }
-    headers = {"Content-Type": "application/json"}
-    try:
-        response = requests.post(api_url, json=payload, headers=headers)
-        response.raise_for_status()
-        return response.json()['candidates'][0]['content']['parts'][0]['text']
-    except requests.exceptions.RequestException as e:
-        print(f"API Error: {e}")
-        return "Unable to retrieve disease suggestions at this time."
-
 # Routes
 @app.route('/')
 def index():
@@ -94,13 +119,17 @@ def chat():
 
             # Query for each of the top diseases
             diseases_list2 = []
-            for i in range(3):
+            for i in range(len(probable_diseases)):
                 diseases_list2.append(probable_diseases[i])
             guidance_text = "\n\n".join(
-                [f"**{disease.upper()}**:\n{query_disease_info(disease)}" for disease, _ in diseases_list2]
+                [
+                    f"**{result['disease'].upper()}**:\n{result['description']}" 
+                    for disease, _ in diseases_list2
+                    if (result := retrieve_closest_source(disease))["disease"] is not None
+                ]
             )
 
-            return jsonify(response=f"{response_text}\n\n<span style='font-size: 24px;'><strong>Biological Treatments:</strong></span>\n{guidance_text}")
+            return jsonify(response=f"{response_text}\n\n<span style='font-size: 24px;'><strong>Details For Each Disease:</strong></span>\n{guidance_text}")
             
     return jsonify(response="Could you provide more details about your symptoms?")
 
