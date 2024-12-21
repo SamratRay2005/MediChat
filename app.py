@@ -70,9 +70,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 initial_bert_model.to(device)
 bert_model.to(device)
 
-# Your actual API key
-api_key = "AIzaSyApvZXWXyl48mnoza945A8CPdh95I4gwg4"  # Replace with your actual API key
-
 def clean_text(text):
     # Create a translation table that maps punctuation to spaces
     translator = str.maketrans(string.punctuation, ' ' * len(string.punctuation))
