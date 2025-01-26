@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 import os
 import string
-import faiss
+# import faiss
 from sentence_transformers import SentenceTransformer
 
 app = Flask(__name__)
@@ -20,38 +20,26 @@ descriptions = data["Description"].tolist()
 diseases = data["Disease"].tolist()
 
 
-# FAISS Index Path
-faiss_index_path = "faiss_index/index.faiss"
-faiss_index = faiss.read_index(faiss_index_path)
+# # FAISS Index Path
+# faiss_index_path = "faiss_index/index.faiss"
+# faiss_index = faiss.read_index(faiss_index_path)
 
 
-# Embedding Model
-embedding_model_name = "sentence-transformers/all-mpnet-base-v2"
-embedding_model = SentenceTransformer(embedding_model_name)
+# # Embedding Model
+# embedding_model_name = "sentence-transformers/all-mpnet-base-v2"
+# embedding_model = SentenceTransformer(embedding_model_name)
 
 # Step 2: Define Query Function
-def retrieve_closest_source(query):
+def retrieve_info_from_csv(disease_name):
     """
-    Retrieve the closest matching source for a given query using FAISS.
+    Retrieve the description of a disease directly from the CSV.
     """
-    # Compute the query embedding
-    query_embedding = embedding_model.encode([query])
-    
-    # Search the FAISS index for the closest match
-    top_k = 1  # Retrieve only the top result
-    distances, indices = faiss_index.search(query_embedding, top_k)
-    
-    if len(indices) > 0 and indices[0][0] != -1:
-        # Get the corresponding description and disease
-        closest_idx = indices[0][0]
-        retrieved_description = descriptions[closest_idx]
-        retrieved_disease = diseases[closest_idx]
-        print(f"Closest Source for '{query}': {retrieved_disease} - {retrieved_description}")
-        return {"disease": retrieved_disease, "description": retrieved_description}
+    match = data[data["Disease"].str.lower() == disease_name.lower()]
+    if not match.empty:
+        description = match["Description"].iloc[0]
+        return {"disease": disease_name, "description": description}
     else:
-        print("No matching source found.")
-        return {"disease": None, "description": "Don't Know"}
-
+        return {"disease": None, "description": "Information not found for the given disease."}
 
 # Example Query Test
 example_query = "diabetes insipidus"
@@ -69,6 +57,9 @@ bert_tokenizer = BertTokenizer.from_pretrained(bert_model_dir)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 initial_bert_model.to(device)
 bert_model.to(device)
+
+# Your actual API key
+api_key = "AIzaSyApvZXWXyl48mnoza945A8CPdh95I4gwg4"  # Replace with your actual API key
 
 def clean_text(text):
     # Create a translation table that maps punctuation to spaces
@@ -120,9 +111,9 @@ def chat():
                 diseases_list2.append(probable_diseases[i])
             guidance_text = "\n\n".join(
                 [
-                    f"**{result['disease'].upper()}**:\n{result['description']}" 
-                    for disease, _ in diseases_list2
-                    if (result := retrieve_closest_source(disease))["disease"] is not None
+                    f"**{disease.upper()}**:\n{info['description']}" 
+                    for disease, _ in probable_diseases
+                    if (info := retrieve_info_from_csv(disease))["disease"] is not None
                 ]
             )
 
