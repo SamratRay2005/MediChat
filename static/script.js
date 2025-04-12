@@ -1,68 +1,64 @@
-document.getElementById('chat-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
+// Dark mode toggle slider functionality
+const darkModeToggle = document.getElementById('dark-mode-toggle');
+const modeText = document.getElementById('mode-text');
 
-    const input = document.getElementById('user-input');
-    const userInput = input.value.trim();
-    if (!userInput) return;
-
-    // Add user message to chat
-    addMessage(userInput, false);
-    input.value = '';
-
-    // Send the message to Flask backend
-    try {
-        const response = await fetch('/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: userInput })
-        });
-
-        const result = await response.json();
-
-        // Format bot message with bolded diseases and recommendations on a new line
-        const formattedResponse = formatBotResponse(result.response);
-        addMessage(formattedResponse, true);
-    } catch (error) {
-        console.error("Error:", error);
-        addMessage("Something went wrong. Please try again later.", true);
-    }
+darkModeToggle.addEventListener('change', () => {
+  document.documentElement.classList.toggle('dark-mode', darkModeToggle.checked);
+  // Update the mode text accordingly.
+  modeText.textContent = darkModeToggle.checked ? "Dark Mode" : "Light Mode";
 });
 
+
+// Listener for the chat form submission
+document.getElementById('chat-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('user-input');
+  const userInput = input.value.trim();
+  if (!userInput) return;
+  addMessage(userInput, false);
+  input.value = '';
+
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userInput })
+    });
+    const { response } = await res.json();
+    addMessage(response, true);
+  } catch (err) {
+    console.error(err);
+    addMessage("Something went wrong. Please try again later.", true);
+  }
+});
+
+// Function to add a new message to the chat container.
 function addMessage(text, isBot) {
-    const chatContainer = document.getElementById('chat-container');
-    const botIconURL = chatContainer.getAttribute('data-bot-icon');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isBot ? 'bot' : 'user'}`;
+  const chat = document.getElementById('chat-container');
+  const msg = document.createElement('div');
+  msg.className = `message ${isBot ? 'bot' : 'user'}`;
+  
+  if (isBot) {
+    // Get the bot icon URL from the chat container's data attribute.
+    const botIconUrl = chat.getAttribute('data-bot-icon');
+    msg.innerHTML = `
+      <img src="${botIconUrl}" alt="Bot Icon" class="bot-icon" />
+      <div class="message-text">${text}</div>
+    `;
+  } else {
+    msg.innerHTML = `<div class="message-text">${text}</div>`;
+  }
+  
+  chat.appendChild(msg);
+  chat.scrollTop = chat.scrollHeight;
+}
 
-    if (isBot) {
-        // Added bot icon container along with message text for consistency
-        messageDiv.innerHTML = `
-            <div class="bot-info">
-                <img src="${botIconURL}" alt="Bot Icon" class="bot-icon"/>
-                <div class="message-text">${text}</div>
-            </div>
-        `;
-    } else {
-        messageDiv.innerHTML = `<p class="message-text">${text}</p>`;
+// Event delegation for toggling collapsible details.
+document.getElementById('chat-container').addEventListener('click', (e) => {
+  if (e.target && e.target.classList.contains('toggle-btn')) {
+    const details = e.target.nextElementSibling;
+    if (details) {
+      details.style.display = (details.style.display === "none" || details.style.display === "") ? "block" : "none";
     }
-
-    chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-function formatBotResponse(response) {
-    // Format the response into paragraphs, bullet points, and emphasized text
-    return response
-        // Bold disease names
-        .replace(/(Based on your symptoms, possible conditions are:)/, "<strong>$1</strong>")
-        // Ensure newline before "Additional guidance"
-        .replace(/(Additional guidance:)/, "<br><br><strong>$1</strong>")
-        // Format emphasis for emergency guidance
-        .replace(/(\*\*(.*?)\*\*)/g, "<strong>$2</strong>")
-        // Format bullet points
-        .replace(/\*(.*?)\*/g, "<li>$1</li>")
-        // Wrap lists inside <ul> tags
-        .replace(/(<li>.*?<\/li>)/g, "<ul>$1</ul>")
-        // Paragraph breaks
-        .replace(/\n/g, "<br>");
-}
+  }
+});
